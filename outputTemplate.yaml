@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Automatic database shut down and start up Lambda functions
+Parameters:
+  InstanceID:
+    Type: String
+    Default: schedulelambda-dev-mysql-test
+  InstanceARN:
+    Type: String
+    Default: arn:aws:rds:ap-southeast-1:115298227216:db:schedulelambda-dev-mysql-test
+Globals:
+  Function:
+    MemorySize: 128
+    Timeout: 3
+    Handler: app.lambdaHandler
+    Runtime: nodejs10.x
+    Environment:
+      Variables:
+        INSTANCE_IDENTIFIER:
+          Ref: InstanceID
+Resources:
+  DBShutDownFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://sam-leung-auto-aws-db-shutdown-deployment-artifacts/6e5118b5f6e20d9a6248d03bb4c10e5a
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds:StopDBInstance
+          Resource:
+            Ref: InstanceARN
+      Events:
+        Schedule1:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 17 ? * MON-FRI *)
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn:
+          Ref: DBFunctionsDeadLetterTopic
+  DBStartUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://sam-leung-auto-aws-db-shutdown-deployment-artifacts/f4f03e554c084d16dc1554d6e0f9c1a8
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds:StartDBInstance
+          Resource:
+            Ref: InstanceARN
+      Events:
+        Schedule1:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 5 ? * MON-FRI *)
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn:
+          Ref: DBFunctionsDeadLetterTopic
+  DBFunctionsDeadLetterTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: lcmkey@gmail.com
+        Protocol: email
